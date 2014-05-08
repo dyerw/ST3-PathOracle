@@ -4,25 +4,61 @@ import os
 
 class PathOracle(sublime_plugin.EventListener):
 
-    def get_path_completions(self, view, prefix):
+    def get_preceding_str(self, view, cursor_pos, scope):
+        # Determine if we are in a double or single quoted string
+        if "double" in scope:
+            quote_char = "\""
+        else:
+            quote_char = "\'"
+
+        prec_str = ""
+
+        # Add all the letters to our result until we hit 
+        # the quote char
+        while view.substr(cursor_pos - 1) != quote_char:
+            prec_str = prec_str + view.substr(cursor_pos - 1)
+            cursor_pos -= 1
+
+        # Reverse the string because we built it backwards
+        return prec_str[::-1]
+
+    def get_path_completions(self, view, context):
         # Gets path completions based on the location of
         # the current file and the preceding text
 
-        # Gets the file location of the current file
-        current_file = view.file_name()
+        # If there is a file separator in the preceding string
+        # we should check if a valid directory precedes it
+        # otherwise try and populate completions from the current
+        # directory
+        if os.sep in context:
+            # Strip everything trailing past the last separator
+            context_dir = os.sep.join(context.split(os.sep)[:-1])
 
-        # Unsaved files will not have a file location
-        if current_file != None:
-            # Get the current directory of this file
-            current_dir = os.path.dirname(current_file)
+            # If it's an existing directory this is the one
+            # we should search for completions
+            # Otherwise don't return any completions
+            if os.path.isdir(context_dir):
+                search_dir = context_dir
+            else:
+                return []
+        else: 
+            # Gets the file location of the current file
+            current_file = view.file_name()
 
-            # Return a list of tuples of each file in the directory
-            # to populate the completions list
-            return [(file, file) for file in os.listdir(current_dir)]
-        else:
-            # If we can't get the current view's file location, return
-            # no completions
-            return []
+            # Unsaved files will not have a file location
+            if current_file != None:
+                # Get the current directory of this file
+                search_dir = os.path.dirname(current_file)
+            else:
+                # If we can't get the current view's file location, return
+                # no completions
+                return []
+
+        #print("SEARCHING: " + search_dir)
+        #print(os.listdir(search_dir))
+        # Return a list of tuples of each file in the directory
+        # to populate the completions list
+        return [(file, file) for file in os.listdir(search_dir)]
 
     def valid_scope(self, scope):
         # Receives a scope and returns whether or not we
@@ -49,4 +85,7 @@ class PathOracle(sublime_plugin.EventListener):
         # We only want to populate the autocomplete if we are
         # in a context where a path would be appropriate
         if self.valid_scope(current_scope):
-            return self.get_path_completions(view, prefix)
+            # Get the preceding contents of the string we are in
+            context = self.get_preceding_str(view, cursor_pos, current_scope)
+
+            return self.get_path_completions(view, context)
