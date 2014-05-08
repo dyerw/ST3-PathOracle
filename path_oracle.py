@@ -26,32 +26,50 @@ class PathOracle(sublime_plugin.EventListener):
         # Gets path completions based on the location of
         # the current file and the preceding text
 
+        # Get the current directory of the file being
+        # edited
+        current_file = view.file_name()
+        current_dir = os.path.dirname(current_file)
+
+
         # If there is a file separator in the preceding string
         # we should check if a valid directory precedes it
         # otherwise try and populate completions from the current
         # directory
         if os.sep in context:
+
             # Strip everything trailing past the last separator
-            context_dir = os.sep.join(context.split(os.sep)[:-1])
+            split_path = context.split(os.sep)
+            context_dir = os.sep.join(split_path[:-1])
+
+            # If the path begins with . or .. we need to prepend
+            # the current directory or they refer to the Sublime
+            # installation directory
+            if split_path[0] == "." or split_path[0] == "..":
+
+                # Check to make sure we can find the current file
+                if current_file != None:
+                    context_dir = current_dir + os.sep + context_dir
+                    print(context_dir)
+                else:
+                    return []
 
             # If it's an existing directory this is the one
             # we should search for completions
             # Otherwise don't return any completions
             if os.path.isdir(context_dir):
+                print(context_dir)
                 search_dir = context_dir
             else:
                 return []
         else: 
-            # Gets the file location of the current file
-            current_file = view.file_name()
-
             # Unsaved files will not have a file location
             if current_file != None:
-                # Get the current directory of this file
-                search_dir = os.path.dirname(current_file)
+                search_dir = current_dir
             else:
                 # If we can't get the current view's file location, return
                 # no completions
+                # TODO: Check for project folder
                 return []
 
         #print("SEARCHING: " + search_dir)
